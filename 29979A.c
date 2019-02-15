@@ -1,9 +1,10 @@
 #pragma config(Sensor, dgtl1,  left,           sensorQuadEncoder)
+#pragma config(Sensor, dgtl3,  ultrasonic,     sensorSONAR_mm)
 #pragma config(Sensor, dgtl11, right,          sensorQuadEncoder)
-#pragma config(Motor,  port2,            ,             tmotorVex393_MC29, openLoop, reversed)
-#pragma config(Motor,  port3,            ,             tmotorVex393_MC29, openLoop, reversed)
-#pragma config(Motor,  port4,            ,             tmotorVex393_MC29, openLoop, reversed)
-#pragma config(Motor,  port5,            ,             tmotorVex393_MC29, openLoop, reversed)
+#pragma config(Motor,  port2,           right1,        tmotorVex393_MC29, openLoop, reversed)
+#pragma config(Motor,  port3,           right2,        tmotorVex393_MC29, openLoop, reversed)
+#pragma config(Motor,  port4,           left1,         tmotorVex393_MC29, openLoop, reversed)
+#pragma config(Motor,  port5,           left2,         tmotorVex393_MC29, openLoop, reversed)
 #pragma config(Motor,  port6,            ,             tmotorVex393_MC29, openLoop)
 #pragma config(Motor,  port7,           arm,           tmotorVex393_MC29, openLoop)
 #pragma config(Motor,  port8,           forearm,       tmotorVex393_MC29, openLoop)
@@ -40,18 +41,20 @@
 /*  function is only called once after the cortex has been powered on and    */
 /*  not every time that the robot is disabled.                               */
 /*---------------------------------------------------------------------------*/
-
-void run(float coef = 1){
-	motor[port2] = 127*coef;
-	motor[port3] = 127*coef;
-	motor[port4] = -127*coef;
-	motor[port5] = -127*coef;
+float correction = 0.55;
+void run(float coef){
+	motor[right1] = 127.0*coef;
+	motor[right2] = 127.0*coef;
+	motor[left1] = -127.0 * correction * coef;
+	motor[left2] = -127.0 * correction * coef;
 }
+/*
 void runslow(int displace){
 	motor[port2] = 100;
 	motor[port3] = 100;
 	motor[port4] = -100;
 	motor[port5] = -100;
+	
 }
 void reverse(float coef = 1){
 	motor[port2] = -127*coef;
@@ -59,32 +62,59 @@ void reverse(float coef = 1){
 	motor[port4] = 127*coef;
 	motor[port5] = 127*coef;
 }
+*/
 void pause(){
-	motor[port2] = 0;
-	motor[port3] = 0;
-	motor[port4] = 0;
-	motor[port5] = 0;
+	motor[right1] = 0;
+	motor[right2] = 0;
+	motor[left1] = 0;
+	motor[left2] = 0;
 }
-void collector(bool on = true){
-	int mode = 1;
-	if (on){
-		mode = 1;
+void intake(float coef ){
+	motor[port6] = 127 * coef;
+}
+void collector(bool in, float time){
+	if (in){
+		motor[port6] = 127;
 	}
 	else{
-		mode = 0;
+		motor[port6] = 127;
 	}
-	motor[port6] = 127*mode;
+	wait1Msec(time*1000);
 }
 
-void move_foward(int displace,float speed = 1){
-
-	while(SensorValue[right]<displace){
-
-		run(speed);
+void move(int displace,float coef){
+	SensorValue[right] = 0;
+	if(coef < 0){
+		displace *= -1;
+		while(SensorValue[right]>displace){
+			run(coef);
+		}
 	}
+	else{
+		while(SensorValue[right]<displace){
+			run(coef);
+		}
+	}
+	
 	pause();
 }
 
+void moveTo(int threshold,float coef){
+	SensorValue[right] = 0;
+	if(coef < 0){
+		while(SensorValue[right]>threshold){
+			run(coef);
+		}
+	}
+	else{
+		while(SensorValue[right]<threshold){
+			run(coef);
+		}
+	}
+	
+	pause();
+}
+/*
 void move_reverse(int displace,float speed = 1){
 
 	while(SensorValue[right]>displace){
@@ -92,23 +122,26 @@ void move_reverse(int displace,float speed = 1){
 	}
 	pause();
 }
-void turn(int angle){
+*/
+void lturn(int angle){
 	while(SensorValue[right]<(angle*0.5)){
-		motor[port2] = 40;
-		motor[port3] = 40;
-		motor[port4] = 40;
-		motor[port5] = 40;
+		motor[right1] = 40;
+		motor[right2] = 40;
+		motor[left1] = 40* correction ;
+		motor[left2] = 40* correction ;
 	}
 	pause();
 }
 void rturn(int angle){
-	while(SensorValue[right]>-(angle*0.5)){
-		motor[port2] = -60;
-		motor[port3] = -60;
-		motor[port4] = -60;
-		motor[port5] = -60;
+	//while(SensorValue[right]>-(angle*0.5)){
+	while(SensorValue[left]<(angle*0.5)){
+		motor[right1] = -40;
+		motor[right2] = -40;
+		motor[left1] = -40* correction ;
+		motor[left] = -40* correction ;
 	}
 	pause();
+	
 }
 
 void pre_auton()
@@ -127,20 +160,35 @@ void pre_auton()
 	// Example: clearing encoders, setting servo positions, ...
 }
 
-/*---------------------------------------------------------------------------*/
-/*                                                                           */
-/*                              Autonomous Task                              */
-/*                                                                           */
-/*  This task is used to control your robot during the autonomous phase of   */
-/*  a VEX Competition.                                                       */
-/*                                                                           */
-/*  You must modify the code to add your own robot specific commands here.   */
-/*---------------------------------------------------------------------------*/
-
 task autonomous()
 {
+	intake(1);
+	moveTo(600, 1);
+	wait1Msec(100);
+	move(500, -1);
+	intake(0);
 
 
+	//GET FLAG FROM BASE
+	/*
+	moveTo(550, 1);
+	pause();
+	wait1Msec(100);
+	move(300, -1);
+	*/
+	/*motor[left1] = 127;
+	wait1Msec(1000);
+	pause();
+	motor[left2] = 127;
+	wait1Msec(1000);
+	pause();
+	motor[right1] = -127;
+	wait1Msec(1000);
+	pause();
+	motor[right2] = -127;
+	wait1Msec(1000);
+	pause();*/
+	
 	//SensorValue[left] = 0;
 	//while(SensorValue[left]>1400){
 	//	motor[port2] = 127;
@@ -168,7 +216,7 @@ task autonomous()
 	//motor[port5] = 0;
 	//motor[port6] = 127;
 	//	wait1Msec(3000);
-	//	motor[port6] = 0;
+	//	motor[port6] = 0;2
 	//motor[port2] = -127;
 	// motor[port3] = -127;
 	//motor[port4] = -127;
@@ -200,23 +248,12 @@ task autonomous()
 	//motor[port5] = 0;
 
 
-
+	pause();
 }
-
-/*---------------------------------------------------------------------------*/
-/*                                                                           */
-/*                              User Control Task                            */
-/*                                                                           */
-/*  This task is used to control your robot during the user control phase of */
-/*  a VEX Competition.                                                       */
-/*                                                                           */
-/*  You must modify the code to add your own robot specific commands here.   */
-/*---------------------------------------------------------------------------*/
-
 
 task usercontrol()
 {
-
+/*
 	//// User ontrol code here, inside the loop
 
 	// This is the main execution loop for the user control program.
@@ -326,7 +363,6 @@ task usercontrol()
 
 		//motor[forearm] = -vexRT[Ch2]-15;
 
-
 	}
-
+*/
 }
